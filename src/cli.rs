@@ -1,21 +1,59 @@
+use clap::{Args, Parser, Subcommand};
+
 use crate::NeoError;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Parser, PartialEq, Eq)]
+#[command(name = "neo")]
 pub enum Cli {
-    Add { url: String },
-    Pop { open: bool },
-    Delete { url: String },
-    Frontier(FrontierCommand),
+    Add(AddArgs),
+    Pop(PopArgs),
+    Delete(DeleteArgs),
+    Size,
+    Frontier(FrontierArgs),
     Directory,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct AddArgs {
+    pub url: String,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct PopArgs {
+    pub index: Option<usize>,
+    #[arg(long)]
+    pub open: bool,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct DeleteArgs {
+    pub url: String,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct FrontierArgs {
+    #[command(subcommand)]
+    pub command: FrontierCommand,
+}
+
+#[derive(Debug, Subcommand, PartialEq, Eq)]
 pub enum FrontierCommand {
-    Start { name: String },
-    Switch { name: String },
-    Rename { name: String, new_name: String },
+    Start(NameArgs),
+    Switch(NameArgs),
+    Rename(RenameArgs),
     List,
-    Delete { name: String },
+    Delete(NameArgs),
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct NameArgs {
+    pub name: String,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct RenameArgs {
+    pub name: String,
+    pub new_name: String,
 }
 
 impl Cli {
@@ -23,94 +61,7 @@ impl Cli {
     where
         I: IntoIterator<Item = String>,
     {
-        let mut args = args.into_iter();
-        let Some(command) = args.next() else {
-            return Err(NeoError::usage());
-        };
-
-        match command.as_str() {
-            "add" => Ok(Self::Add {
-                url: take_one(args, "neo add <url>")?,
-            }),
-            "pop" => {
-                let rest: Vec<_> = args.collect();
-                match rest.as_slice() {
-                    [] => Ok(Self::Pop { open: false }),
-                    [flag] if flag == "--open" => Ok(Self::Pop { open: true }),
-                    _ => Err(NeoError::Usage("usage: neo pop [--open]".into())),
-                }
-            }
-            "delete" => Ok(Self::Delete {
-                url: take_one(args, "neo delete <url>")?,
-            }),
-            "frontier" => Ok(Self::Frontier(parse_frontier(args)?)),
-            "directory" => {
-                let rest: Vec<_> = args.collect();
-                if rest.is_empty() {
-                    Ok(Self::Directory)
-                } else {
-                    Err(NeoError::Usage("usage: neo directory".into()))
-                }
-            }
-            _ => Err(NeoError::usage()),
-        }
-    }
-}
-
-fn parse_frontier<I>(args: I) -> Result<FrontierCommand, NeoError>
-where
-    I: IntoIterator<Item = String>,
-{
-    let mut args = args.into_iter();
-    let Some(command) = args.next() else {
-        return Err(NeoError::Usage(
-            "usage: neo frontier <start|switch|rename|list|delete> ...".into(),
-        ));
-    };
-
-    match command.as_str() {
-        "start" => Ok(FrontierCommand::Start {
-            name: take_one(args, "neo frontier start <name>")?,
-        }),
-        "switch" => Ok(FrontierCommand::Switch {
-            name: take_one(args, "neo frontier switch <name>")?,
-        }),
-        "rename" => {
-            let rest: Vec<_> = args.collect();
-            match rest.as_slice() {
-                [name, new_name] => Ok(FrontierCommand::Rename {
-                    name: name.clone(),
-                    new_name: new_name.clone(),
-                }),
-                _ => Err(NeoError::Usage(
-                    "usage: neo frontier rename <name> <new_name>".into(),
-                )),
-            }
-        }
-        "list" => {
-            let rest: Vec<_> = args.collect();
-            if rest.is_empty() {
-                Ok(FrontierCommand::List)
-            } else {
-                Err(NeoError::Usage("usage: neo frontier list".into()))
-            }
-        }
-        "delete" => Ok(FrontierCommand::Delete {
-            name: take_one(args, "neo frontier delete <name>")?,
-        }),
-        _ => Err(NeoError::Usage(
-            "usage: neo frontier <start|switch|rename|list|delete> ...".into(),
-        )),
-    }
-}
-
-fn take_one<I>(args: I, usage: &str) -> Result<String, NeoError>
-where
-    I: IntoIterator<Item = String>,
-{
-    let values: Vec<_> = args.into_iter().collect();
-    match values.as_slice() {
-        [value] => Ok(value.clone()),
-        _ => Err(NeoError::Usage(format!("usage: {usage}"))),
+        let args = std::iter::once(String::from("neo")).chain(args);
+        Self::try_parse_from(args).map_err(|err| NeoError::Usage(err.to_string()))
     }
 }

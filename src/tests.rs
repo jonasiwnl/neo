@@ -1,8 +1,9 @@
+use crate::cli::{Cli, PopArgs};
+use crate::frontier::{FrontierRepo, unique_suffix};
+use crate::run_with_root;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use crate::cli::Cli;
-use crate::frontier::{FrontierRepo, unique_suffix};
 
 pub fn temp_test_dir(name: &str) -> PathBuf {
     let path = env::temp_dir().join(format!("neo-test-{name}-{}", unique_suffix()));
@@ -21,8 +22,8 @@ fn frontier_round_trip_is_fifo() {
     repo.add_url("https://example.com/a").unwrap();
     repo.add_url("https://example.com/b").unwrap();
 
-    assert_eq!(repo.pop_url().unwrap(), "https://example.com/a");
-    assert_eq!(repo.pop_url().unwrap(), "https://example.com/b");
+    assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/a");
+    assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/b");
 }
 
 #[test]
@@ -58,11 +59,73 @@ fn delete_url_removes_matching_entries() {
     repo.add_url("https://example.com/b").unwrap();
     repo.delete_url("https://example.com/a").unwrap();
 
-    assert_eq!(repo.pop_url().unwrap(), "https://example.com/b");
+    assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/b");
 }
 
 #[test]
 fn cli_parses_pop_open_flag() {
     let cli = Cli::parse(vec!["pop".into(), "--open".into()]).unwrap();
-    assert_eq!(cli, Cli::Pop { open: true });
+    assert_eq!(
+        cli,
+        Cli::Pop(PopArgs {
+            index: None,
+            open: true
+        })
+    );
+}
+
+#[test]
+fn cli_parses_pop_index() {
+    let cli = Cli::parse(vec!["pop".into(), "2".into(), "--open".into()]).unwrap();
+    assert_eq!(
+        cli,
+        Cli::Pop(PopArgs {
+            index: Some(2),
+            open: true
+        })
+    );
+}
+
+#[test]
+fn pop_supports_indexed_removal() {
+    let root = temp_test_dir("pop-index");
+    let repo = FrontierRepo::open(root).unwrap();
+
+    repo.create_frontier("queue", true).unwrap();
+    repo.add_url("https://example.com/a").unwrap();
+    repo.add_url("https://example.com/b").unwrap();
+    repo.add_url("https://example.com/c").unwrap();
+
+    assert_eq!(repo.pop_url(Some(1)).unwrap(), "https://example.com/b");
+    assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/a");
+    assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/c");
+}
+
+#[test]
+fn pop_rejects_out_of_bounds_index() {
+    let root = temp_test_dir("pop-oob");
+    let repo = FrontierRepo::open(root).unwrap();
+
+    repo.create_frontier("queue", true).unwrap();
+    repo.add_url("https://example.com/a").unwrap();
+
+    let err = repo.pop_url(Some(1)).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "index 1 is out of bounds for frontier 'queue'"
+    );
+}
+
+#[test]
+fn size_reports_number_of_links() {
+    let root = temp_test_dir("size-output");
+    let repo = FrontierRepo::open(root.clone()).unwrap();
+    repo.create_frontier("queue", true).unwrap();
+    repo.add_url("https://example.com/a").unwrap();
+    repo.add_url("https://example.com/b").unwrap();
+
+    let mut stdout = Vec::new();
+    run_with_root(vec!["size".into()], &mut stdout, root).unwrap();
+
+    assert_eq!(String::from_utf8(stdout).unwrap(), "2\n");
 }

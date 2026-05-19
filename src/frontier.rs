@@ -113,13 +113,24 @@ impl FrontierRepo {
         self.write_frontier(&frontier, &urls)
     }
 
-    pub fn pop_url(&self) -> Result<String, NeoError> {
+    pub fn size(&self) -> Result<usize, NeoError> {
+        let frontier = self.require_current_frontier()?;
+        Ok(self.read_frontier(&frontier)?.len())
+    }
+
+    pub fn pop_url(&self, index: Option<usize>) -> Result<String, NeoError> {
         let frontier = self.require_current_frontier()?;
         let mut urls = self.read_frontier(&frontier)?;
+        let index = index.unwrap_or(0);
         if urls.is_empty() {
             return Err(NeoError::Message(format!("frontier '{frontier}' is empty")));
         }
-        let url = urls.remove(0);
+        if index >= urls.len() {
+            return Err(NeoError::Message(format!(
+                "index {index} is out of bounds for frontier '{frontier}'"
+            )));
+        }
+        let url = urls.remove(index);
         self.write_frontier(&frontier, &urls)?;
         Ok(url)
     }

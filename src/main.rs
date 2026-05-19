@@ -24,23 +24,33 @@ fn run<I>(args: I, stdout: &mut impl io::Write) -> Result<(), NeoError>
 where
     I: IntoIterator<Item = String>,
 {
+    run_with_root(args, stdout, default_root_dir()?)
+}
+
+fn run_with_root<I>(args: I, stdout: &mut impl io::Write, root: PathBuf) -> Result<(), NeoError>
+where
+    I: IntoIterator<Item = String>,
+{
     let command = Cli::parse(args)?;
-    let repo = FrontierRepo::open(default_root_dir()?)?;
+    let repo = FrontierRepo::open(root)?;
 
     match command {
-        Cli::Add { url } => repo.add_url(&url)?,
-        Cli::Pop { open } => {
-            let url = repo.pop_url()?;
+        Cli::Add(args) => repo.add_url(&args.url)?,
+        Cli::Pop(args) => {
+            let url = repo.pop_url(args.index)?;
             writeln!(stdout, "{url}")?;
-            if open {
+            if args.open {
                 open_in_browser(&url)?;
             }
         }
-        Cli::Delete { url } => repo.delete_url(&url)?,
-        Cli::Frontier(frontier) => match frontier {
-            FrontierCommand::Start { name } => repo.create_frontier(&name, true)?,
-            FrontierCommand::Switch { name } => repo.switch_frontier(&name)?,
-            FrontierCommand::Rename { name, new_name } => repo.rename_frontier(&name, &new_name)?,
+        Cli::Delete(args) => repo.delete_url(&args.url)?,
+        Cli::Size => {
+            writeln!(stdout, "{}", repo.size()?)?;
+        }
+        Cli::Frontier(frontier) => match frontier.command {
+            FrontierCommand::Start(args) => repo.create_frontier(&args.name, true)?,
+            FrontierCommand::Switch(args) => repo.switch_frontier(&args.name)?,
+            FrontierCommand::Rename(args) => repo.rename_frontier(&args.name, &args.new_name)?,
             FrontierCommand::List => {
                 let current = repo.current_frontier()?;
                 for name in repo.list_frontiers()? {
@@ -52,7 +62,7 @@ where
                     writeln!(stdout, "{marker} {name}")?;
                 }
             }
-            FrontierCommand::Delete { name } => repo.delete_frontier(&name)?,
+            FrontierCommand::Delete(args) => repo.delete_frontier(&args.name)?,
         },
         Cli::Directory => {
             writeln!(stdout, "{}", repo.root().display())?;
@@ -93,12 +103,6 @@ pub enum NeoError {
     Io(io::Error),
     Usage(String),
     Message(String),
-}
-
-impl NeoError {
-    pub fn usage() -> Self {
-        Self::Usage("usage: neo <add|pop|delete|frontier|directory> ...".into())
-    }
 }
 
 impl Display for NeoError {
