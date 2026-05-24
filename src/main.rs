@@ -47,6 +47,7 @@ where
         Cli::Size => {
             writeln!(stdout, "{}", repo.size()?)?;
         }
+        Cli::Index(args) => repo.index(args.library)?,
         Cli::Frontier(frontier) => match frontier.command {
             FrontierCommand::Start(args) => repo.create_frontier(&args.name, true)?,
             FrontierCommand::Switch(args) => repo.switch_frontier(&args.name)?,

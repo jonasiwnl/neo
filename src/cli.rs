@@ -9,6 +9,7 @@ pub enum Cli {
     Pop(PopArgs),
     Delete(DeleteArgs),
     Size,
+    Index(IndexArgs),
     Frontier(FrontierArgs),
     Directory,
 }
@@ -28,6 +29,12 @@ pub struct PopArgs {
 #[derive(Args, Debug, PartialEq, Eq)]
 pub struct DeleteArgs {
     pub url: String,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct IndexArgs {
+    #[arg(long)]
+    pub library: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]

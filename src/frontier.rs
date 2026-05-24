@@ -171,6 +171,11 @@ impl FrontierRepo {
         Ok(Some(name))
     }
 
+    pub fn index(&self, library: bool) -> Result<(), NeoError> {
+        // TODO
+        Ok(())
+    }
+
     fn require_current_frontier(&self) -> Result<String, NeoError> {
         self.current_frontier()?.ok_or_else(|| {
             NeoError::Message("no active frontier; run `neo frontier start <name>`".into())
