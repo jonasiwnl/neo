@@ -27,6 +27,20 @@ fn frontier_round_trip_is_fifo() {
 }
 
 #[test]
+fn popping_url_keeps_it_in_library() {
+    let root = temp_test_dir("library-pop");
+    let repo = FrontierRepo::open(root.clone()).unwrap();
+
+    repo.create_frontier("reading", true).unwrap();
+    repo.add_url("https://example.com/a").unwrap();
+    repo.add_url("https://example.com/b").unwrap();
+    repo.pop_url(None).unwrap();
+
+    let library = fs::read_to_string(root.join("frontiers/reading/library.txt")).unwrap();
+    assert_eq!(library, "https://example.com/a\nhttps://example.com/b\n");
+}
+
+#[test]
 fn renaming_current_frontier_updates_selection() {
     let root = temp_test_dir("rename");
     let repo = FrontierRepo::open(root).unwrap();
@@ -60,6 +74,22 @@ fn delete_url_removes_matching_entries() {
     repo.delete_url("https://example.com/a").unwrap();
 
     assert_eq!(repo.pop_url(None).unwrap(), "https://example.com/b");
+}
+
+#[test]
+fn delete_url_removes_entry_from_library() {
+    let root = temp_test_dir("delete-library");
+    let repo = FrontierRepo::open(root.clone()).unwrap();
+
+    repo.create_frontier("queue", true).unwrap();
+    repo.add_url("https://example.com/a").unwrap();
+    repo.add_url("https://example.com/b").unwrap();
+    repo.delete_url("https://example.com/a").unwrap();
+
+    let frontier = fs::read_to_string(root.join("frontiers/queue/frontier.txt")).unwrap();
+    let library = fs::read_to_string(root.join("frontiers/queue/library.txt")).unwrap();
+    assert_eq!(frontier, "https://example.com/b\n");
+    assert_eq!(library, "https://example.com/b\n");
 }
 
 #[test]

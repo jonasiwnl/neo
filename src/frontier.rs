@@ -29,6 +29,7 @@ impl FrontierRepo {
 
         fs::create_dir_all(&dir)?;
         self.write_atomic(dir.join("frontier.txt"), b"")?;
+        self.write_atomic(dir.join("library.txt"), b"")?;
         self.write_atomic(dir.join("meta.txt"), format!("name={name}\n").as_bytes())?;
 
         if switch_to_it {
@@ -108,19 +109,22 @@ impl FrontierRepo {
     pub fn add_url(&self, url: &str) -> Result<(), NeoError> {
         validate_url(url)?;
         let frontier = self.require_current_frontier()?;
-        let mut urls = self.read_frontier(&frontier)?;
-        urls.push(url.to_string());
-        self.write_frontier(&frontier, &urls)
+        let mut frontier_urls = self.read_frontier(self.frontier_file(&frontier))?;
+        frontier_urls.push(url.to_string());
+        let mut library_urls = self.read_frontier(self.library_file(&frontier))?;
+        library_urls.push(url.to_string());
+        self.write_frontier(self.frontier_file(&frontier), &frontier_urls)?;
+        self.write_frontier(self.library_file(&frontier), &library_urls)
     }
 
     pub fn size(&self) -> Result<usize, NeoError> {
         let frontier = self.require_current_frontier()?;
-        Ok(self.read_frontier(&frontier)?.len())
+        Ok(self.read_frontier(self.frontier_file(&frontier))?.len())
     }
 
     pub fn pop_url(&self, index: Option<usize>) -> Result<String, NeoError> {
         let frontier = self.require_current_frontier()?;
-        let mut urls = self.read_frontier(&frontier)?;
+        let mut urls = self.read_frontier(self.frontier_file(&frontier))?;
         let index = index.unwrap_or(0);
         if urls.is_empty() {
             return Err(NeoError::Message(format!("frontier '{frontier}' is empty")));
@@ -131,22 +135,27 @@ impl FrontierRepo {
             )));
         }
         let url = urls.remove(index);
-        self.write_frontier(&frontier, &urls)?;
+        self.write_frontier(self.frontier_file(&frontier), &urls)?;
         Ok(url)
     }
 
     pub fn delete_url(&self, url: &str) -> Result<(), NeoError> {
         validate_url(url)?;
         let frontier = self.require_current_frontier()?;
-        let urls = self.read_frontier(&frontier)?;
-        let original_len = urls.len();
-        let filtered: Vec<_> = urls.into_iter().filter(|entry| entry != url).collect();
-        if filtered.len() == original_len {
+        let library_urls = self.read_frontier(self.library_file(&frontier))?;
+        let original_len = library_urls.len();
+        let filtered_library_urls: Vec<_> = library_urls.into_iter().filter(|entry| entry != url).collect();
+        if filtered_library_urls.len() == original_len {
             return Err(NeoError::Message(format!(
                 "url not found in frontier '{frontier}'"
             )));
         }
-        self.write_frontier(&frontier, &filtered)
+
+        let frontier_urls = self.read_frontier(self.frontier_file(&frontier))?;
+        let filtered_frontier_urls: Vec<_> = frontier_urls.into_iter().filter(|entry| entry != url).collect();
+
+        self.write_frontier(self.frontier_file(&frontier), &filtered_frontier_urls)?;
+        self.write_frontier(self.library_file(&frontier), &filtered_library_urls)
     }
 
     pub fn current_frontier(&self) -> Result<Option<String>, NeoError> {
@@ -181,8 +190,7 @@ impl FrontierRepo {
         }
     }
 
-    fn read_frontier(&self, name: &str) -> Result<Vec<String>, NeoError> {
-        let path = self.frontier_file(name);
+    fn read_frontier(&self, path: PathBuf) -> Result<Vec<String>, NeoError> {
         if !path.exists() {
             return Ok(Vec::new());
         }
@@ -194,12 +202,12 @@ impl FrontierRepo {
             .collect())
     }
 
-    fn write_frontier(&self, name: &str, urls: &[String]) -> Result<(), NeoError> {
+    fn write_frontier(&self, path: PathBuf, urls: &[String]) -> Result<(), NeoError> {
         let mut data = urls.join("\n");
         if !data.is_empty() {
             data.push('\n');
         }
-        self.write_atomic(self.frontier_file(name), data.as_bytes())
+        self.write_atomic(path, data.as_bytes())
     }
 
     fn write_atomic(&self, path: PathBuf, bytes: &[u8]) -> Result<(), NeoError> {
@@ -215,6 +223,10 @@ impl FrontierRepo {
 
     fn frontier_file(&self, name: &str) -> PathBuf {
         self.frontier_dir(name).join("frontier.txt")
+    }
+
+    fn library_file(&self, name: &str) -> PathBuf {
+        self.frontier_dir(name).join("library.txt")
     }
 
     fn current_path(&self) -> PathBuf {
