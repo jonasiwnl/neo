@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::NeoError;
+use crate::index::index;
 
 pub struct FrontierRepo {
     root: PathBuf,
@@ -171,9 +172,16 @@ impl FrontierRepo {
         Ok(Some(name))
     }
 
-    pub fn index(&self, library: bool) -> Result<(), NeoError> {
+    pub fn index_command(&self, library: bool) -> Result<(), NeoError> {
+        let frontier = self.require_current_frontier()?;
+        let urls = if library { self.read_frontier(self.library_file(&frontier)) } else { self.read_frontier(self.frontier_file(&frontier)) }?;
+        index(urls)
+    }
+
+    pub fn search_command(&self, query: &str) -> Result<Vec<String>, NeoError> {
         // TODO
-        Ok(())
+        println!("{}", query);
+        Ok(vec![])
     }
 
     fn require_current_frontier(&self) -> Result<String, NeoError> {

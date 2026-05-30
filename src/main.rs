@@ -1,5 +1,7 @@
 mod cli;
 mod frontier;
+mod index;
+mod crawler;
 
 #[cfg(test)]
 mod tests;
@@ -47,7 +49,14 @@ where
         Cli::Size => {
             writeln!(stdout, "{}", repo.size()?)?;
         }
-        Cli::Index(args) => repo.index(args.library)?,
+        Cli::Index(args) => repo.index_command(args.library)?,
+        Cli::Search(args) => {
+            let urls = repo.search_command(&args.query)?;
+            for url in &urls {
+                writeln!(stdout, "{}", url)?;
+            }
+            
+        }
         Cli::Frontier(frontier) => match frontier.command {
             FrontierCommand::Start(args) => repo.create_frontier(&args.name, true)?,
             FrontierCommand::Switch(args) => repo.switch_frontier(&args.name)?,
@@ -102,6 +111,7 @@ fn open_in_browser(url: &str) -> Result<(), NeoError> {
 #[derive(Debug)]
 pub enum NeoError {
     Io(io::Error),
+    Reqwest(reqwest::Error),
     Usage(String),
     Message(String),
 }
@@ -110,6 +120,7 @@ impl Display for NeoError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(err) => write!(f, "{err}"),
+            Self::Reqwest(err) => write!(f, "{err}"),
             Self::Usage(message) | Self::Message(message) => f.write_str(message),
         }
     }
@@ -118,5 +129,11 @@ impl Display for NeoError {
 impl From<io::Error> for NeoError {
     fn from(value: io::Error) -> Self {
         Self::Io(value)
+    }
+}
+
+impl From<reqwest::Error> for NeoError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Reqwest(value)
     }
 }

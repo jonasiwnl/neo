@@ -10,6 +10,7 @@ pub enum Cli {
     Delete(DeleteArgs),
     Size,
     Index(IndexArgs),
+    Search(SearchArgs),
     Frontier(FrontierArgs),
     Directory,
 }
@@ -35,6 +36,12 @@ pub struct DeleteArgs {
 pub struct IndexArgs {
     #[arg(long)]
     pub library: bool,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct SearchArgs {
+    #[arg(long)]
+    pub query: String,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]
