@@ -9,6 +9,7 @@ pub enum Cli {
     Pop(PopArgs),
     Delete(DeleteArgs),
     Size,
+    View(ViewArgs),
     Index(IndexArgs),
     Search(SearchArgs),
     Frontier(FrontierArgs),
@@ -34,6 +35,12 @@ pub struct DeleteArgs {
 
 #[derive(Args, Debug, PartialEq, Eq)]
 pub struct IndexArgs {
+    #[arg(long)]
+    pub library: bool,
+}
+
+#[derive(Args, Debug, PartialEq, Eq)]
+pub struct ViewArgs {
     #[arg(long)]
     pub library: bool,
 }

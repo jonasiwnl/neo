@@ -184,7 +184,7 @@ impl FrontierRepo {
         Ok(vec![])
     }
 
-    fn require_current_frontier(&self) -> Result<String, NeoError> {
+    pub fn require_current_frontier(&self) -> Result<String, NeoError> {
         self.current_frontier()?.ok_or_else(|| {
             NeoError::Message("no active frontier; run `neo frontier start <name>`".into())
         })
@@ -234,11 +234,11 @@ impl FrontierRepo {
         self.root.join("frontiers").join(name)
     }
 
-    fn frontier_file(&self, name: &str) -> PathBuf {
+    pub fn frontier_file(&self, name: &str) -> PathBuf {
         self.frontier_dir(name).join("frontier.txt")
     }
 
-    fn library_file(&self, name: &str) -> PathBuf {
+    pub fn library_file(&self, name: &str) -> PathBuf {
         self.frontier_dir(name).join("library.txt")
     }
 

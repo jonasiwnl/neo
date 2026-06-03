@@ -11,6 +11,7 @@ use std::fmt::{self, Display};
 use std::io;
 use std::path::PathBuf;
 use std::process::Command;
+use std::ffi::OsString;
 
 use cli::{Cli, FrontierCommand};
 use frontier::FrontierRepo;
@@ -48,6 +49,22 @@ where
         Cli::Delete(args) => repo.delete_url(&args.url)?,
         Cli::Size => {
             writeln!(stdout, "{}", repo.size()?)?;
+        }
+        Cli::View(args) => {
+            let current = repo.require_current_frontier()?;
+            let frontier_pathbuf = if args.library { repo.library_file(&current) } else { repo.frontier_file(&current) };
+            let frontier_file = String::from(
+                frontier_pathbuf.to_str().ok_or(NeoError::Message(String::from("couldn't get current frontier")))?
+            );
+            let pager_command = String::from(
+                env::var_os("PAGER").unwrap_or(OsString::from("less")).to_str().ok_or(NeoError::Message(String::from("couldn't get pager command")))?
+            );
+            let status = Command::new(&pager_command).arg(&frontier_file).status()?;
+            if status.success() {
+                return Ok(());
+            } else {
+                return Err(NeoError::Message(format!("failed to open frontier file '{frontier_file}' using pager '{pager_command}'")));
+            }
         }
         Cli::Index(args) => repo.index_command(args.library)?,
         Cli::Search(args) => {
