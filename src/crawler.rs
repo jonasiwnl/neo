@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use url::Url;
 
 use crate::NeoError;
+use crate::index::index_document;
 
 // Shared state across all crawler tasks
 struct CrawlerState {
@@ -40,9 +41,44 @@ impl CrawlerState {
     }
 }
 
+pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
+    document.select(&selector)
+        .map(|element| element.text()
+            .map(|text| text.split(' ')
+                .map(|word| word.chars()
+                    .filter(|ch| ch.is_alphanumeric())
+                    .map(|ch| ch.to_ascii_lowercase())
+                    .collect()
+                )
+            ).flatten()
+        ).flatten().collect()
+}
+
 async fn crawl_page(state: Arc<CrawlerState>, url: Url) -> Result<(), NeoError> {
     state.limiter.until_ready().await;
     let response = state.client.get(url).send().await?;
+
+    if !response.status().is_success() {
+        return Ok(()); // TODO: return some error status
+    }
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if !content_type.contains("text/html") {
+        return Ok(());
+    }
+
+    let body = response.text().await?;
+    let document = Html::parse_document(&body);
+    for tag in [ "title", "h1", "p" ] {
+        let selector =  Selector::parse(tag).unwrap();
+        let words = parse_words(&document, &selector);
+        index_document(words);
+    }
 
     Ok(())
 }

@@ -1,6 +1,8 @@
 use crate::cli::{Cli, PopArgs};
 use crate::frontier::{FrontierRepo, unique_suffix};
 use crate::run_with_root;
+use crate::crawler::parse_words;
+use scraper::{Html, Selector};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -158,4 +160,19 @@ fn size_reports_number_of_links() {
     run_with_root(vec!["size".into()], &mut stdout, root).unwrap();
 
     assert_eq!(String::from_utf8(stdout).unwrap(), "2\n");
+}
+
+#[test]
+fn parse_words_returns_alphanumeric_words_paragraph_tag() {
+    let fragment = Html::parse_fragment(r#"<p>rust creAte; hello World!</p>"#);
+    let selector = Selector::parse("p").unwrap();
+    assert_eq!(vec!["rust", "create", "hello", "world"], parse_words(&fragment, &selector));
+
+    let fragment = Html::parse_fragment(r#"<h1>rust creAte; hello World!</p>"#);
+    assert_eq!(Vec::<String>::new(), parse_words(&fragment, &selector));
+    let fragment = Html::parse_fragment(r#"<title>rust creAte; hello World!</title>"#);
+    assert_eq!(Vec::<String>::new(), parse_words(&fragment, &selector));
+
+    let selector = Selector::parse("title").unwrap();
+    assert_eq!(vec!["rust", "create", "hello", "world"], parse_words(&fragment, &selector));
 }

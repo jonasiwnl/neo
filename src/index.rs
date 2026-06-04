@@ -9,3 +9,6 @@ pub struct _IndexSummary {
 pub fn index(_urls: Vec<String>) -> Result<(), NeoError> {
     Ok(())
 }
+
+pub fn index_document(words: Vec<String>) {
+}
