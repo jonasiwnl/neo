@@ -148,8 +148,8 @@ fn pop_rejects_out_of_bounds_index() {
     );
 }
 
-#[test]
-fn size_reports_number_of_links() {
+#[tokio::test]
+async fn size_reports_number_of_links() {
     let root = temp_test_dir("size-output");
     let repo = FrontierRepo::open(root.clone()).unwrap();
     repo.create_frontier("queue", true).unwrap();
@@ -157,7 +157,7 @@ fn size_reports_number_of_links() {
     repo.add_url("https://example.com/b").unwrap();
 
     let mut stdout = Vec::new();
-    run_with_root(vec!["size".into()], &mut stdout, root).unwrap();
+    run_with_root(vec!["size".into()], &mut stdout, root).await.unwrap();
 
     assert_eq!(String::from_utf8(stdout).unwrap(), "2\n");
 }

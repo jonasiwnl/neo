@@ -1,44 +1,13 @@
-use dashmap::DashSet;
-use governor::{Quota, RateLimiter};
-use reqwest::Client;
+// Dedupe frontier (HashSet) -> url frontier -> workers request, retry, politeness, etc (RIS?) -> index
+// Also dedupe page content
+// Frontier: one queue per host, priority queue with timer to select next, give to worker
+
+use std::{collections::{BinaryHeap, VecDeque}, time::SystemTime};
 use scraper::{Html, Selector};
-use std::num::NonZeroU32;
-use std::sync::Arc;
-use tokio::sync::mpsc;
-use url::Url;
-
 use crate::NeoError;
-use crate::index::index_document;
 
-// Shared state across all crawler tasks
-struct CrawlerState {
-    client: Client,
-    visited: DashSet<String>,
-    limiter: RateLimiter<
-        governor::state::NotKeyed,
-        governor::state::InMemoryState,
-        governor::clock::DefaultClock,
-    >,
-}
-
-impl CrawlerState {
-    fn new(requests_per_second: u32) -> Self {
-        let client = Client::builder()
-            .user_agent("JonasNeo/1.0")
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("failed to build HTTP client");
-
-        // Token bucket: refill `requests_per_second` tokens every second
-        let quota = Quota::per_second(NonZeroU32::new(requests_per_second).unwrap());
-        let limiter = RateLimiter::direct(quota);
-
-        Self {
-            client,
-            visited: DashSet::new(),
-            limiter,
-        }
-    }
+pub struct CrawlSummary {
+    pub urls_crawled: usize,
 }
 
 pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
@@ -54,31 +23,21 @@ pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
         ).flatten().collect()
 }
 
-async fn crawl_page(state: Arc<CrawlerState>, url: Url) -> Result<(), NeoError> {
-    state.limiter.until_ready().await;
-    let response = state.client.get(url).send().await?;
+struct Frontier {
+    urls: VecDeque<String>,
+    queue_selector: BinaryHeap<SystemTime>,
+}
 
-    if !response.status().is_success() {
-        return Ok(()); // TODO: return some error status
+impl Frontier {
+    fn new(mut urls: Vec<String>) -> Self {
+        urls.dedup();
+        let queue_selector = BinaryHeap::new();
+        return Frontier{urls: VecDeque::from(urls), queue_selector};
     }
+}
 
-    let content_type = response
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if !content_type.contains("text/html") {
-        return Ok(());
-    }
-
-    let body = response.text().await?;
-    let document = Html::parse_document(&body);
-    for tag in [ "title", "h1", "p" ] {
-        let selector =  Selector::parse(tag).unwrap();
-        let words = parse_words(&document, &selector);
-        index_document(words);
-    }
-
-    Ok(())
+pub async fn crawl(urls: Vec<String>) -> Result<CrawlSummary, NeoError> {
+    let len = urls.len();
+    let frontier = Frontier::new(urls);
+    return Ok(CrawlSummary{ urls_crawled: len });
 }

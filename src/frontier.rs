@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::NeoError;
-use crate::index::index;
+use crate::crawler::{CrawlSummary, crawl};
 
 pub struct FrontierRepo {
     root: PathBuf,
@@ -172,10 +172,10 @@ impl FrontierRepo {
         Ok(Some(name))
     }
 
-    pub fn index_command(&self, library: bool) -> Result<(), NeoError> {
+    pub async fn crawl_repo(&self, library: bool) -> Result<CrawlSummary, NeoError> {
         let frontier = self.require_current_frontier()?;
         let urls = if library { self.read_frontier(self.library_file(&frontier)) } else { self.read_frontier(self.frontier_file(&frontier)) }?;
-        index(urls)
+        crawl(urls).await
     }
 
     pub fn search_command(&self, query: &str) -> Result<Vec<String>, NeoError> {

@@ -16,21 +16,22 @@ use std::ffi::OsString;
 use cli::{Cli, FrontierCommand};
 use frontier::FrontierRepo;
 
-fn main() {
-    if let Err(err) = run(env::args().skip(1), &mut io::stdout()) {
+#[tokio::main]
+async fn main() {
+    if let Err(err) = run(env::args().skip(1), &mut io::stdout()).await {
         eprintln!("error: {err}");
         std::process::exit(1);
     }
 }
 
-fn run<I>(args: I, stdout: &mut impl io::Write) -> Result<(), NeoError>
+async fn run<I>(args: I, stdout: &mut impl io::Write) -> Result<(), NeoError>
 where
     I: IntoIterator<Item = String>,
 {
-    run_with_root(args, stdout, default_root_dir()?)
+    run_with_root(args, stdout, default_root_dir()?).await
 }
 
-fn run_with_root<I>(args: I, stdout: &mut impl io::Write, root: PathBuf) -> Result<(), NeoError>
+async fn run_with_root<I>(args: I, stdout: &mut impl io::Write, root: PathBuf) -> Result<(), NeoError>
 where
     I: IntoIterator<Item = String>,
 {
@@ -66,7 +67,11 @@ where
                 return Err(NeoError::Message(format!("failed to open frontier file '{frontier_file}' using pager '{pager_command}'")));
             }
         }
-        Cli::Index(args) => repo.index_command(args.library)?,
+        Cli::Index(args) => {
+            let crawl_summary = repo.crawl_repo(args.library).await?;
+            writeln!(stdout, "urls crawled: {}", crawl_summary.urls_crawled)?;
+            return Ok(());
+        },
         Cli::Search(args) => {
             let urls = repo.search_command(&args.query)?;
             for url in &urls {

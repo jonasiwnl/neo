@@ -1,3 +1,4 @@
+
 use crate::NeoError;
 
 pub struct _IndexSummary {
@@ -6,9 +7,6 @@ pub struct _IndexSummary {
     index_size: u32,
 }
 
-pub fn index(_urls: Vec<String>) -> Result<(), NeoError> {
+pub fn _index_document(_words: Vec<String>) -> Result<(), NeoError> {
     Ok(())
-}
-
-pub fn index_document(words: Vec<String>) {
 }
