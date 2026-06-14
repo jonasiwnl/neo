@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use scraper::{Html, Selector};
 
 use crate::NeoError;
@@ -27,6 +29,6 @@ pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
         ).flatten().collect()
 }
 
-pub fn index_document(words: Vec<String>) -> Result<(), NeoError> {
+pub fn index(crawl_file: PathBuf) -> Result<(), NeoError> {
     Ok(())
 }

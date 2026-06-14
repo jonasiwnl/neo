@@ -2,8 +2,7 @@
 // Also dedupe page content
 // Frontier: one queue per host, priority queue with timer to select next, give to worker
 
-use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime};
-use std::io::{Write, BufWriter};
+use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime, io::{Write, BufWriter}, path::PathBuf, fs::File};
 
 use serde::{Deserialize, Serialize};
 use tokio::{sync::{Mutex, mpsc::{Receiver, Sender}}, task::JoinHandle};
@@ -12,14 +11,14 @@ use chrono::Utc;
 use crate::NeoError;
 
 const MAX_RETRIES: u8 = 3;
-const WORKER_THREADS: usize = 1;
+const WORKER_THREADS: usize = 16;
 
 pub struct CrawlSummary {
     pub urls_crawled: usize,
 }
 
 #[derive(Serialize, Deserialize)]
-struct CrawledPage {
+pub struct CrawledPage {
     url: String,
     fetched_at: String,
     html: String,
@@ -37,20 +36,20 @@ impl Frontier {
         return Frontier{urls: VecDeque::from(urls), queue_selector};
     }
 
-    pub async fn run(mut self, tx: Sender<String>) {
+    pub async fn run(mut self, url_tx: Sender<String>) {
         // In the future, we should have one queue per host, with a priority q with timers to select the next queue to read from
         // Ok, I guess this can infinite loop
         // Also, can we avoid the string copy
         while let Some(url) = self.urls.pop_front() {
-            if let Err(_) = tx.send(url.clone()).await {
+            if let Err(_) = url_tx.send(url.clone()).await {
                 self.urls.push_back(url);
             }
         }
-        drop(tx);
+        drop(url_tx);
     }
 }
 
-async fn crawl_single_page(url: &String) -> Result<(), NeoError> {
+async fn crawl_single_page(url: &String, write_tx: &Sender<CrawledPage>) -> Result<(), NeoError> {
     dbg!("crawling {}", url);
 
     let fetched_at = Utc::now().to_rfc3339();
@@ -73,26 +72,37 @@ async fn crawl_single_page(url: &String) -> Result<(), NeoError> {
     let html = response.text().await?;
     let page = CrawledPage{url: url.to_string(), fetched_at, html};
 
-    // Save to disk for now
-    // TODO MAKE THIS SAFE MULTITHREADED
-    let file = std::fs::OpenOptions::new().append(true).create(true).open("crawl.jsonl")?;
-    let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &page)?;
-    writeln!(writer)?;
+    write_tx.send(page).await?;
 
     dbg!("crawled {}", url);
 
     Ok(())
 }
 
-async fn worker(rx: Arc<Mutex<Receiver<String>>>) {
+async fn writer_fn(mut writer: BufWriter<File>, mut write_rx: Receiver<CrawledPage>) -> Result<(), NeoError> {
     loop {
-        let url = rx.lock().await.recv().await;
+        let page = write_rx.recv().await;
+        match page {
+            Some(page) => {
+                serde_json::to_writer(&mut writer, &page)?;
+                writeln!(writer)?;
+            },
+            None => break,
+        }
+    }
+
+    dbg!("writer routine finished.");
+    Ok(())
+}
+
+async fn worker_fn(url_rx: Arc<Mutex<Receiver<String>>>, write_tx: Sender<CrawledPage>) {
+    loop {
+        let url = url_rx.lock().await.recv().await;
         match url {
             Some(url) => {
                 // Log error?
                 let mut retries = 0;
-                while let Err(_) = crawl_single_page(&url).await && retries < MAX_RETRIES {
+                while let Err(_) = crawl_single_page(&url, &write_tx).await && retries < MAX_RETRIES {
                     retries += 1;
                     // Else... log that we dropped a url
                 }
@@ -100,22 +110,36 @@ async fn worker(rx: Arc<Mutex<Receiver<String>>>) {
             None => break,
         }
     }
+
+    drop(write_tx);
 }
 
-pub async fn crawl(urls: Vec<String>) -> Result<CrawlSummary, NeoError> {
+pub async fn crawl(urls: Vec<String>, crawl_file: PathBuf) -> Result<CrawlSummary, NeoError> {
     let len = urls.len();
     let frontier = Frontier::new(urls);
-    let (tx, rx) = tokio::sync::mpsc::channel::<String>(len);
-    let rx = Arc::new(Mutex::new(rx));
+
+    // Crawl output
+    let file = File::create(crawl_file)?;
+    let writer = BufWriter::new(file);
+    let (write_tx, write_rx) = tokio::sync::mpsc::channel::<CrawledPage>(5 * WORKER_THREADS);
+    tokio::spawn(writer_fn(writer, write_rx));
+
+    // Url send/receive
+    let (url_tx, url_rx) = tokio::sync::mpsc::channel::<String>(len);
+    let url_rx = Arc::new(Mutex::new(url_rx));
     let mut handles = Vec::<JoinHandle<()>>::with_capacity(WORKER_THREADS);
-    tokio::spawn(frontier.run(tx.clone()));
+    tokio::spawn(frontier.run(url_tx.clone()));
+    drop(url_tx);
+
     for _ in 0..WORKER_THREADS {
-        handles.push(tokio::spawn(worker(Arc::clone(&rx))));
+        handles.push(tokio::spawn(worker_fn(Arc::clone(&url_rx), write_tx.clone())));
     }
-    drop(tx);
+    drop(write_tx);
+
     // Wait for all workers to finish
     for handle in handles {
         handle.await.unwrap();
     }
+
     return Ok(CrawlSummary{ urls_crawled: len });
 }

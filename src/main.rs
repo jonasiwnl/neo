@@ -16,6 +16,8 @@ use std::ffi::OsString;
 use cli::{Cli, FrontierCommand};
 use frontier::FrontierRepo;
 
+use crate::crawler::CrawledPage;
+
 #[tokio::main]
 async fn main() {
     if let Err(err) = run(env::args().skip(1), &mut io::stdout()).await {
@@ -135,6 +137,7 @@ pub enum NeoError {
     Io(io::Error),
     Reqwest(reqwest::Error),
     SerdeJson(serde_json::Error),
+    TokioSend(tokio::sync::mpsc::error::SendError<CrawledPage>),
     Usage(String),
     Message(String),
 }
@@ -145,6 +148,7 @@ impl Display for NeoError {
             Self::Io(err) => write!(f, "{err}"),
             Self::Reqwest(err) => write!(f, "{err}"),
             Self::SerdeJson(err) => write!(f, "{err}"),
+            Self::TokioSend(err) => write!(f, "{err}"),
             Self::Usage(message) | Self::Message(message) => f.write_str(message),
         }
     }
@@ -165,5 +169,11 @@ impl From<reqwest::Error> for NeoError {
 impl From<serde_json::Error> for NeoError {
     fn from(value: serde_json::Error) -> Self {
         Self::SerdeJson(value)
+    }
+}
+
+impl From<tokio::sync::mpsc::error::SendError<CrawledPage>> for NeoError {
+    fn from(value: tokio::sync::mpsc::error::SendError<CrawledPage>) -> Self {
+        Self::TokioSend(value)
     }
 }

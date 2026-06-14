@@ -32,6 +32,7 @@ impl FrontierRepo {
         self.write_atomic(dir.join("frontier.txt"), b"")?;
         self.write_atomic(dir.join("library.txt"), b"")?;
         self.write_atomic(dir.join("meta.txt"), format!("name={name}\n").as_bytes())?;
+        self.write_atomic(dir.join("crawl.jsonl"), b"")?;
 
         if switch_to_it {
             self.set_current_frontier(Some(name))?;
@@ -175,7 +176,7 @@ impl FrontierRepo {
     pub async fn crawl_repo(&self, library: bool) -> Result<CrawlSummary, NeoError> {
         let frontier = self.require_current_frontier()?;
         let urls = if library { self.read_frontier(self.library_file(&frontier)) } else { self.read_frontier(self.frontier_file(&frontier)) }?;
-        crawl(urls).await
+        crawl(urls, self.crawl_file(&frontier)).await
     }
 
     pub fn search_command(&self, query: &str) -> Result<Vec<String>, NeoError> {
@@ -240,6 +241,10 @@ impl FrontierRepo {
 
     pub fn library_file(&self, name: &str) -> PathBuf {
         self.frontier_dir(name).join("library.txt")
+    }
+
+    pub fn crawl_file(&self, name: &str) -> PathBuf {
+        self.frontier_dir(name).join("crawl.jsonl")
     }
 
     fn current_path(&self) -> PathBuf {
