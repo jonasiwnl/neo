@@ -1,7 +1,7 @@
 use crate::cli::{Cli, PopArgs};
 use crate::frontier::{FrontierRepo, unique_suffix};
 use crate::run_with_root;
-use crate::crawler::parse_words;
+use crate::index::parse_words;
 use scraper::{Html, Selector};
 use std::env;
 use std::fs;

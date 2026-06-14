@@ -3,9 +3,10 @@
 // Frontier: one queue per host, priority queue with timer to select next, give to worker
 
 use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime};
-use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
 use tokio::{sync::{Mutex, mpsc::{Receiver, Sender}}, task::JoinHandle};
 use crate::NeoError;
+use std::io::{Write, BufWriter};
 
 const MAX_RETRIES: u8 = 3;
 const WORKER_THREADS: usize = 16;
@@ -14,17 +15,12 @@ pub struct CrawlSummary {
     pub urls_crawled: usize,
 }
 
-pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
-    document.select(&selector)
-        .map(|element| element.text()
-            .map(|text| text.split(' ')
-                .map(|word| word.chars()
-                    .filter(|ch| ch.is_alphanumeric())
-                    .map(|ch| ch.to_ascii_lowercase())
-                    .collect()
-                )
-            ).flatten()
-        ).flatten().collect()
+#[derive(Serialize, Deserialize)]
+struct CrawledPage {
+    url: String,
+    fetched_at: String,
+    title: Option<String>,
+    html: String,
 }
 
 struct Frontier {
@@ -53,7 +49,35 @@ impl Frontier {
 }
 
 async fn crawl_single_page(url: &String) -> Result<(), NeoError> {
-    println!("crawling {}", url);
+    dbg!("crawling {}", url);
+    let response = reqwest::get(url).await?;
+
+    if !response.status().is_success() {
+        return Ok(()); // TODO: return some error status
+    }
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if !content_type.contains("text/html") {
+        return Ok(());
+    }
+
+    let html = response.text().await?;
+    let page = CrawledPage{url: url.to_string(), fetched_at: String::from(""), title: Some(String::from("")), html: html};
+
+    // Save to disk for now
+    // TODO MAKE THIS SAFE MULTITHREADED
+    let file = std::fs::OpenOptions::new().append(true).create(true).open("crawl.jsonl")?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &page)?;
+    writeln!(writer)?;
+
+    dbg!("crawled {}", url);
+
     Ok(())
 }
 

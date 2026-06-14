@@ -134,6 +134,7 @@ fn open_in_browser(url: &str) -> Result<(), NeoError> {
 pub enum NeoError {
     Io(io::Error),
     Reqwest(reqwest::Error),
+    SerdeJson(serde_json::Error),
     Usage(String),
     Message(String),
 }
@@ -143,6 +144,7 @@ impl Display for NeoError {
         match self {
             Self::Io(err) => write!(f, "{err}"),
             Self::Reqwest(err) => write!(f, "{err}"),
+            Self::SerdeJson(err) => write!(f, "{err}"),
             Self::Usage(message) | Self::Message(message) => f.write_str(message),
         }
     }
@@ -157,5 +159,11 @@ impl From<io::Error> for NeoError {
 impl From<reqwest::Error> for NeoError {
     fn from(value: reqwest::Error) -> Self {
         Self::Reqwest(value)
+    }
+}
+
+impl From<serde_json::Error> for NeoError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::SerdeJson(value)
     }
 }
