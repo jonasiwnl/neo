@@ -12,7 +12,7 @@ use chrono::Utc;
 use crate::NeoError;
 
 const MAX_RETRIES: u8 = 3;
-const WORKER_THREADS: usize = 16;
+const WORKER_THREADS: usize = 1;
 
 pub struct CrawlSummary {
     pub urls_crawled: usize,
