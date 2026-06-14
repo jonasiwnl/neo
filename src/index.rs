@@ -1,4 +1,5 @@
 use scraper::{Html, Selector};
+
 use crate::NeoError;
 
 pub struct IndexSummary {

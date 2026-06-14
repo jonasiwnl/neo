@@ -3,10 +3,13 @@
 // Frontier: one queue per host, priority queue with timer to select next, give to worker
 
 use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime};
+use std::io::{Write, BufWriter};
+
 use serde::{Deserialize, Serialize};
 use tokio::{sync::{Mutex, mpsc::{Receiver, Sender}}, task::JoinHandle};
+use chrono::Utc;
+
 use crate::NeoError;
-use std::io::{Write, BufWriter};
 
 const MAX_RETRIES: u8 = 3;
 const WORKER_THREADS: usize = 16;
@@ -19,7 +22,6 @@ pub struct CrawlSummary {
 struct CrawledPage {
     url: String,
     fetched_at: String,
-    title: Option<String>,
     html: String,
 }
 
@@ -50,6 +52,8 @@ impl Frontier {
 
 async fn crawl_single_page(url: &String) -> Result<(), NeoError> {
     dbg!("crawling {}", url);
+
+    let fetched_at = Utc::now().to_rfc3339();
     let response = reqwest::get(url).await?;
 
     if !response.status().is_success() {
@@ -67,7 +71,7 @@ async fn crawl_single_page(url: &String) -> Result<(), NeoError> {
     }
 
     let html = response.text().await?;
-    let page = CrawledPage{url: url.to_string(), fetched_at: String::from(""), title: Some(String::from("")), html: html};
+    let page = CrawledPage{url: url.to_string(), fetched_at, html};
 
     // Save to disk for now
     // TODO MAKE THIS SAFE MULTITHREADED

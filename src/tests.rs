@@ -1,11 +1,13 @@
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+
+use scraper::{Html, Selector};
+
 use crate::cli::{Cli, PopArgs};
 use crate::frontier::{FrontierRepo, unique_suffix};
 use crate::run_with_root;
 use crate::index::parse_words;
-use scraper::{Html, Selector};
-use std::env;
-use std::fs;
-use std::path::PathBuf;
 
 pub fn temp_test_dir(name: &str) -> PathBuf {
     let path = env::temp_dir().join(format!("neo-test-{name}-{}", unique_suffix()));
