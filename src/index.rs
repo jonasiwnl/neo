@@ -1,13 +1,17 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, fmt};
 
 use scraper::{Html, Selector};
 
-use crate::NeoError;
+use crate::{NeoError, util::humansize};
 
 pub struct IndexSummary {
-    total_urls: u32,
-    urls_indexed: u32,
-    index_size: u32,
+    index_size: u64,
+}
+
+impl fmt::Display for IndexSummary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "index file size: {}", humansize(self.index_size))
+    }
 }
 
 // let document = Html::parse_document(&html);
@@ -29,6 +33,6 @@ pub fn parse_words(document: &Html, selector: &Selector) -> Vec<String> {
         ).flatten().collect()
 }
 
-pub fn index(crawl_file: PathBuf) -> Result<(), NeoError> {
-    Ok(())
+pub async fn index(crawl_file: PathBuf) -> Result<IndexSummary, NeoError> {
+    Ok(IndexSummary { index_size: 0 })
 }

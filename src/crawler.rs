@@ -2,12 +2,13 @@
 // Also dedupe page content
 // Frontier: one queue per host, priority queue with timer to select next, give to worker
 
-use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime, io::{Write, BufWriter}, path::PathBuf, fs::File};
+use std::{collections::{BinaryHeap, VecDeque}, sync::Arc, time::SystemTime, io::{Write, BufWriter}, path::PathBuf, fs::{File, metadata}, fmt};
 
 use serde::{Deserialize, Serialize};
 use tokio::{sync::{Mutex, mpsc::{Receiver, Sender}}, task::JoinHandle};
 use chrono::Utc;
 
+use crate::util::humansize;
 use crate::NeoError;
 
 const MAX_RETRIES: u8 = 3;
@@ -15,6 +16,13 @@ const WORKER_THREADS: usize = 16;
 
 pub struct CrawlSummary {
     pub urls_crawled: usize,
+    pub crawl_file_size: u64,
+}
+
+impl fmt::Display for CrawlSummary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} urls crawled\ncrawl file size: {}", self.urls_crawled, humansize(self.crawl_file_size))
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -50,7 +58,7 @@ impl Frontier {
 }
 
 async fn crawl_single_page(url: &String, write_tx: &Sender<CrawledPage>) -> Result<(), NeoError> {
-    dbg!("crawling {}", url);
+    eprintln!("crawling {url}");
 
     let fetched_at = Utc::now().to_rfc3339();
     let response = reqwest::get(url).await?;
@@ -74,7 +82,7 @@ async fn crawl_single_page(url: &String, write_tx: &Sender<CrawledPage>) -> Resu
 
     write_tx.send(page).await?;
 
-    dbg!("crawled {}", url);
+    eprintln!("crawled {url}");
 
     Ok(())
 }
@@ -91,7 +99,6 @@ async fn writer_fn(mut writer: BufWriter<File>, mut write_rx: Receiver<CrawledPa
         }
     }
 
-    dbg!("writer routine finished.");
     Ok(())
 }
 
@@ -119,27 +126,30 @@ pub async fn crawl(urls: Vec<String>, crawl_file: PathBuf) -> Result<CrawlSummar
     let frontier = Frontier::new(urls);
 
     // Crawl output
-    let file = File::create(crawl_file)?;
+    let file = File::create(&crawl_file)?;
     let writer = BufWriter::new(file);
     let (write_tx, write_rx) = tokio::sync::mpsc::channel::<CrawledPage>(5 * WORKER_THREADS);
-    tokio::spawn(writer_fn(writer, write_rx));
+    let writer_handle = tokio::spawn(writer_fn(writer, write_rx));
 
     // Url send/receive
     let (url_tx, url_rx) = tokio::sync::mpsc::channel::<String>(len);
     let url_rx = Arc::new(Mutex::new(url_rx));
-    let mut handles = Vec::<JoinHandle<()>>::with_capacity(WORKER_THREADS);
+    let mut worker_handles = Vec::<JoinHandle<()>>::with_capacity(WORKER_THREADS);
     tokio::spawn(frontier.run(url_tx.clone()));
     drop(url_tx);
 
     for _ in 0..WORKER_THREADS {
-        handles.push(tokio::spawn(worker_fn(Arc::clone(&url_rx), write_tx.clone())));
+        worker_handles.push(tokio::spawn(worker_fn(Arc::clone(&url_rx), write_tx.clone())));
     }
     drop(write_tx);
 
     // Wait for all workers to finish
-    for handle in handles {
-        handle.await.unwrap();
+    for worker_handle in worker_handles {
+        worker_handle.await.unwrap();
     }
 
-    return Ok(CrawlSummary{ urls_crawled: len });
+    writer_handle.await.unwrap()?;
+    let crawl_file_size = metadata(crawl_file)?.len();
+
+    return Ok(CrawlSummary{ urls_crawled: len, crawl_file_size });
 }

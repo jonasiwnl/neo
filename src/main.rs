@@ -2,6 +2,7 @@ mod cli;
 mod frontier;
 mod index;
 mod crawler;
+mod util;
 
 #[cfg(test)]
 mod tests;
@@ -71,13 +72,15 @@ where
         }
         Cli::Index(args) => {
             let crawl_summary = repo.crawl_repo(args.library).await?;
-            writeln!(stdout, "urls crawled: {}", crawl_summary.urls_crawled)?;
+            writeln!(stdout, "{crawl_summary}")?;
+            let index_summary = repo.index_repo().await?;
+            writeln!(stdout, "{index_summary}")?;
             return Ok(());
         },
         Cli::Search(args) => {
             let urls = repo.search_command(&args.query)?;
             for url in &urls {
-                writeln!(stdout, "{}", url)?;
+                writeln!(stdout, "{url}")?;
             }
             
         }

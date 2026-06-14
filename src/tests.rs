@@ -8,6 +8,7 @@ use crate::cli::{Cli, PopArgs};
 use crate::frontier::{FrontierRepo, unique_suffix};
 use crate::run_with_root;
 use crate::index::parse_words;
+use crate::util::humansize;
 
 pub fn temp_test_dir(name: &str) -> PathBuf {
     let path = env::temp_dir().join(format!("neo-test-{name}-{}", unique_suffix()));
@@ -177,4 +178,28 @@ fn parse_words_returns_alphanumeric_words_paragraph_tag() {
 
     let selector = Selector::parse("title").unwrap();
     assert_eq!(vec!["rust", "create", "hello", "world"], parse_words(&fragment, &selector));
+}
+
+#[test]
+fn humansize_formats_bytes_with_binary_units() {
+    let cases = [
+        (0, "0B"),
+        (1, "1B"),
+        (1023, "1023B"),
+        (1024, "1.0KB"),
+        (1536, "1.5KB"),
+        ((1024 << 10) - 1, "1024.0KB"),
+        (1024 << 10, "1.0MB"),
+        (5 * (1024 << 10) + 512 * 1024, "5.5MB"),
+        ((1024 << 20) - 1, "1024.0MB"),
+        (1024 << 20, "1.0GB"),
+        (3 * (1024 << 20) + 300 * (1024 << 10), "3.3GB"),
+        ((1024 << 30) - 1, "1024.0GB"),
+        (1024 << 30, "1.0TB"),
+        (2 * (1024 << 30) + 512 * (1024 << 20), "2.5TB"),
+    ];
+
+    for (bytes, expected) in cases {
+        assert_eq!(humansize(bytes), expected, "bytes={bytes}");
+    }
 }

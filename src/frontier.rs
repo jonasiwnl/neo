@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::NeoError;
 use crate::crawler::{CrawlSummary, crawl};
+use crate::index::{IndexSummary, index};
 
 pub struct FrontierRepo {
     root: PathBuf,
@@ -179,9 +180,14 @@ impl FrontierRepo {
         crawl(urls, self.crawl_file(&frontier)).await
     }
 
+    pub async fn index_repo(&self) -> Result<IndexSummary, NeoError> {
+        let frontier = self.require_current_frontier()?;
+        index(self.crawl_file(&frontier)).await
+    }
+
     pub fn search_command(&self, query: &str) -> Result<Vec<String>, NeoError> {
         // TODO
-        println!("{}", query);
+        println!("{query}");
         Ok(vec![])
     }
 
