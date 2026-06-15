@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use scraper::{Html, Selector};
 
 use crate::cli::{Cli, PopArgs};
-use crate::frontier::{FrontierRepo, unique_suffix};
+use crate::frontier::FrontierRepo;
+use crate::util::unique_suffix;
 use crate::run_with_root;
 use crate::index::parse_words;
 use crate::util::humansize;

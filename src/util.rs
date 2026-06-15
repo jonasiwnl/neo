@@ -1,3 +1,7 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::NeoError;
+
 pub fn humansize(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB << 10;
@@ -15,4 +19,21 @@ pub fn humansize(bytes: u64) -> String {
     } else {
         format!("{:.1}TB", bytes as f64 / TB as f64)
     }
+}
+
+pub fn validate_url(url: &str) -> Result<(), NeoError> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        Ok(())
+    } else {
+        Err(NeoError::Message(
+            "url must start with http:// or https://".into(),
+        ))
+    }
+}
+
+pub fn unique_suffix() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
 }

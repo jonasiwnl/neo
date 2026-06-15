@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::NeoError;
 use crate::crawler::{CrawlSummary, crawl};
 use crate::index::{IndexSummary, index};
+use crate::util::{unique_suffix, validate_url};
 
 pub struct FrontierRepo {
     root: PathBuf,
@@ -268,21 +268,4 @@ fn validate_name(name: &str) -> Result<(), NeoError> {
         ));
     }
     Ok(())
-}
-
-fn validate_url(url: &str) -> Result<(), NeoError> {
-    if url.starts_with("http://") || url.starts_with("https://") {
-        Ok(())
-    } else {
-        Err(NeoError::Message(
-            "url must start with http:// or https://".into(),
-        ))
-    }
-}
-
-pub fn unique_suffix() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
 }
