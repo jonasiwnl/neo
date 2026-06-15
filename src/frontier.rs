@@ -180,9 +180,9 @@ impl FrontierRepo {
         crawl(urls, self.crawl_file(&frontier)).await
     }
 
-    pub async fn index_repo(&self) -> Result<IndexSummary, NeoError> {
+    pub async fn index_repo(&self, consume: bool) -> Result<IndexSummary, NeoError> {
         let frontier = self.require_current_frontier()?;
-        index(self.crawl_file(&frontier)).await
+        index(self.crawl_file(&frontier), consume).await
     }
 
     pub fn search_command(&self, query: &str) -> Result<Vec<String>, NeoError> {

@@ -37,6 +37,8 @@ pub struct DeleteArgs {
 pub struct IndexArgs {
     #[arg(long)]
     pub library: bool,
+    #[arg(long, num_args(0..=1), action = clap::ArgAction::Set, default_value = "true", default_missing_value = "true",)]
+    pub consume: bool,
 }
 
 #[derive(Args, Debug, PartialEq, Eq)]

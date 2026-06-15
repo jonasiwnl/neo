@@ -73,7 +73,7 @@ where
         Cli::Index(args) => {
             let crawl_summary = repo.crawl_repo(args.library).await?;
             writeln!(stdout, "{crawl_summary}")?;
-            let index_summary = repo.index_repo().await?;
+            let index_summary = repo.index_repo(args.consume).await?;
             writeln!(stdout, "{index_summary}")?;
             return Ok(());
         },

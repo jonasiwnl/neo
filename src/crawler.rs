@@ -27,9 +27,9 @@ impl fmt::Display for CrawlSummary {
 
 #[derive(Serialize, Deserialize)]
 pub struct CrawledPage {
-    url: String,
-    fetched_at: String,
-    html: String,
+    pub url: String,
+    pub fetched_at: String,
+    pub html: String,
 }
 
 struct Frontier {
