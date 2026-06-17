@@ -29,6 +29,9 @@ struct Dictionary {
 }
 
 struct PostingList {
+    // Amount of times this word appears in all crawled documents
+    corpus_frequency: u64,
+    // Document frequency (# of documents that contain this word) = len(posts)
     posts: Vec<Post>,
 }
 
